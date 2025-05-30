@@ -1,0 +1,271 @@
+---
+title: "BADM590 CAR Model"
+author: "Kristine Wong"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Required Libraries
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(readxl)
+library(tibble)
+```
+
+## Load Data & Merge
+```{r}
+event_data <- read_excel("BADM590 Indexed Stock Data.xlsx")
+market_data <- read_excel("BADM590 Indexed Market Data.xlsx")
+
+data <- merge(event_data, market_data, by = "Days_Announced", all.x = TRUE)
+```
+
+## Compute Log Returns for Stocks and Market
+```{r}
+# Get the list of stock price columns and corresponding market price columns
+indiv_columns <- setdiff(names(data), c("Days_Announced", grep("Market", names(data), value = TRUE)))
+
+# Loop through each individual and calculate AR for both the estimation window and event window
+for (indiv in indiv_columns) {
+
+  # Extract the corresponding market column for each individual
+  market_column <- gsub("_Stock", "_Market", indiv)
+
+  # Calculate log returns for the individual and the market
+  data <- data %>%
+    arrange(Days_Announced) %>%
+    mutate(
+      # For indiv returns
+      !!paste0(indiv, "_return") := log(.data[[indiv]] / lag(.data[[indiv]])),
+
+      # For market returns
+      !!paste0(market_column, "_return") := log(.data[[market_column]] / lag(.data[[market_column]]))
+    )
+
+  # Estimate Market Model (using pre-event window: -101 to -10)
+  estimation_window <- subset(data, Days_Announced >= -101 & Days_Announced <= -10)
+
+  # Fit Market Model for the indiv
+  model <- lm(as.formula(paste0(indiv, "_return ~ ", market_column, "_return")), data = estimation_window)
+
+  # Predict expected returns for entire period
+  data[[paste0(indiv, "_expected")]] <- predict(model, newdata = data)
+
+  # Calculate Abnormal Returns (AR) for entire dataset (estimation & event windows)
+  data[[paste0(indiv, "_ar")]] <- data[[paste0(indiv, "_return")]] - data[[paste0(indiv, "_expected")]]
+
+}
+```
+
+## Summarize Abnormal Returns (AR) during Event Window (-9 to 9)
+```{r}
+# Summary table
+event_window_summary <- data %>%
+  filter(Days_Announced >= -9 & Days_Announced <= 9) %>%
+  select(ends_with("_ar")) %>%
+  summarise(across(everything(), sum, na.rm = TRUE))
+print(event_window_summary)
+
+# Visualize AR over time
+ar_data_long <- data %>%
+  filter(Days_Announced >= -9 & Days_Announced <= 9) %>%
+  pivot_longer(cols = contains("_ar"), names_to = "Individual", values_to = "Abnormal_AR")
+
+# Plotting AR over time
+ggplot(ar_data_long, aes(x = Days_Announced, y = Abnormal_AR, color = Individual)) +
+  geom_line(linewidth = 1) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red") +  # Marking event date
+  labs(title = "Abnormal Returns (AR) Over Time",
+       x = "Days Announced",
+       y = "Abnormal Return") +
+  theme_minimal() +
+  scale_color_discrete(name = "Individual")
+
+# Summary table before
+event_window_summary_before <- data %>%
+  filter(Days_Announced >= -9 & Days_Announced < 0) %>%
+  select(ends_with("_ar")) %>%
+  summarise(across(everything(), sum, na.rm = TRUE))
+print(event_window_summary_before)
+
+# Summary table after
+event_window_summary_after <- data %>%
+  filter(Days_Announced >= 0 & Days_Announced <= 9) %>%
+  select(ends_with("_ar")) %>%
+  summarise(across(everything(), sum, na.rm = TRUE))
+print(event_window_summary_after)
+
+# Export to CSV
+event_win<-cbind(event_window_summary,event_window_summary_before,event_window_summary_after)
+write.csv(event_win,"event_win.csv")
+```
+
+## Segment Abnormal Return Results by Group
+```{r}
+# Prepare metadata for groups
+indiv_metadata <- tibble(
+  LV = list(c("Deepika_Stock_ar", "Zendaya_Stock_ar", "Lisa_Stock_ar","Jude_Stock_ar")),
+  Kering = list(c("Lil_Stock_ar", "RM_Stock_ar", "Billie_Stock_ar","Jacob_Stock_ar","Nicole_Stock_ar")),
+  Moncler = list(c("ASAP_Stock_ar")),
+  Burberry = list(c("Barry_Stock_ar", "Zhang_Stock_ar")),
+  Tapestry = list(c("Jennifer_Stock_ar", "Serena_Stock_ar", "Taraji_Stock_ar")),
+  Artist = list(c("Lisa_Stock_ar", "Lil_Stock_ar", "RM_Stock_ar","Billie_Stock_ar","ASAP_Stock_ar","Jennifer_Stock_ar")),
+  Actor = list(c("Deepika_Stock_ar", "Zendaya_Stock_ar","Jacob_Stock_ar","Nicole_Stock_ar","Barry_Stock_ar","Zhang_Stock_ar", "Taraji_Stock_ar")),
+  Athlete = list(c("Jude_Stock_ar", "Serena_Stock_ar")),
+  First = list(c("RM_Stock_ar", "Nicole_Stock_ar")),
+  NotFirst = list(c("Deepika_Stock_ar", "Zendaya_Stock_ar", "Lisa_Stock_ar","Jude_Stock_ar","Lil_Stock_ar", "Billie_Stock_ar","Jacob_Stock_ar","ASAP_Stock_ar","Barry_Stock_ar", "Zhang_Stock_ar","Jennifer_Stock_ar", "Serena_Stock_ar", "Taraji_Stock_ar"))
+)
+
+# Reshape metadata to long format (Individual, Group)
+metadata_long <- indiv_metadata %>%
+  pivot_longer(cols = everything(), names_to = "Group", values_to = "Individual") %>%
+  unnest(Individual)
+
+# Join with metadata to assign group(s)
+ar_data_grouped <- ar_data_long %>%
+  left_join(metadata_long, by = "Individual")
+
+# Summarize AR by group and calculate CAAR
+event_window_group <- ar_data_grouped %>%
+  group_by(Group, Days_Announced) %>%
+  summarise(Avg_AR = mean(Abnormal_AR, na.rm = TRUE), .groups = "drop")
+event_window_group2 <- event_window_group %>%
+  group_by(Group) %>%
+  arrange(Days_Announced) %>%
+  mutate(CAAR = cumsum(Avg_AR))
+
+# Total
+event_window_group_summary <- event_window_group2 %>%
+  group_by(Group) %>%
+  summarise(Total = last(CAAR), .groups = "drop")
+
+# Before Group
+before_group <- event_window_group2 %>%
+  filter(Days_Announced < 0) %>%
+  group_by(Group) %>%
+  summarise(Before = last(CAAR), .groups = "drop")
+
+# After Group
+after_group <- event_window_group %>%
+  filter(Days_Announced >= 0) %>%
+  group_by(Group)%>%
+  arrange(Days_Announced) %>%
+  mutate(CAAR = cumsum(Avg_AR))
+after_group2 <- after_group %>%
+  group_by(Group) %>%
+  summarise(After = last(CAAR), .groups = "drop")
+
+# Combine all the results into a final summary table
+final_summary <- event_window_group_summary %>%
+  left_join(before_group, by = "Group") %>%
+  left_join(after_group2, by = "Group")
+
+# Print and Export to CSV
+print(final_summary)
+write.csv(final_summary,"by_group.csv")
+```
+
+## Visualize Segment Results
+```{r}
+library(showtext)  # for Google Fonts like Raleway
+
+# Load Raleway font
+font_add_google("Raleway", "raleway")
+showtext_auto()
+
+custom_colors <- c("#6f5e4f", "#e3bbbd", "#97976a", "#A67F78", "#F18C8C", "#f7efda")
+
+# Brand
+# Step 1: Average AR per group per day
+brand_daily_avg <- ar_data_grouped %>%
+  group_by(Group, Days_Announced) %>%
+  summarise(Avg_AR = mean(Abnormal_AR, na.rm = TRUE), .groups = "drop")%>%
+  filter(Group %in% c("LV", "Kering", "Moncler","Burberry","Tapestry"))  # <-- Filter for Brands
+
+# Step 2: Compute CAAR per group
+brand_caar <- brand_daily_avg %>%
+  group_by(Group) %>%
+  arrange(Days_Announced) %>%
+  mutate(CAAR = cumsum(Avg_AR))
+
+# Step 3: Line plot
+ggplot(brand_caar, aes(x = Days_Announced, y = CAAR, color = Group)) +
+  geom_line(linewidth = 1) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red") +
+  labs(
+    title = "Cumulative Average Abnormal Returns (CAAR) by Brand",
+    x = "Days Around Event",
+    y = "CAAR"
+  ) +
+  scale_color_manual(values = custom_colors) +
+  theme_minimal(base_family = "raleway") +
+  theme(
+    panel.grid = element_blank(),         # Removes all gridlines
+    plot.title = element_text(hjust = 0.5, size=16,face = "bold"),  # Centered title
+    legend.title = element_blank()
+  )
+
+# Occupation
+# Step 1: Average AR per group per day
+industry_daily_avg <- ar_data_grouped %>%
+  group_by(Group, Days_Announced) %>%
+  summarise(Avg_AR = mean(Abnormal_AR, na.rm = TRUE), .groups = "drop")%>%
+  filter(Group %in% c("Actor", "Athlete", "Artist"))  # <-- Filter for Occupation
+
+# Step 2: Compute CAAR per group
+industry_caar <- industry_daily_avg %>%
+  group_by(Group) %>%
+  arrange(Days_Announced) %>%
+  mutate(CAAR = cumsum(Avg_AR))
+
+# Step 3: Line plot
+ggplot(industry_caar, aes(x = Days_Announced, y = CAAR, color = Group)) +
+  geom_line(linewidth = 1) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Cumulative Average Abnormal Returns (CAAR) by Occupation",
+       x = "Days Around Event",
+       y = "CAAR") +
+  scale_color_manual(values=custom_colors)+
+  theme_minimal(base_family="raleway")+
+  theme(
+    panel.grid=element_blank(),
+    plot.title=element_text(hjust=0.5,size=16,face="bold"),
+    legend.title=element_blank()
+  )
+
+# First v Not First
+# Step 1: Average AR per group per day
+first_daily_avg <- ar_data_grouped %>%
+  group_by(Group, Days_Announced) %>%
+  summarise(Avg_AR = mean(Abnormal_AR, na.rm = TRUE), .groups = "drop")%>%
+  filter(Group %in% c("First", "NotFirst"))  # <-- Filter for Entry
+
+# Step 2: Compute CAAR per group
+first_caar <- first_daily_avg %>%
+  group_by(Group) %>%
+  arrange(Days_Announced) %>%
+  mutate(CAAR = cumsum(Avg_AR))
+
+# Step 3: Line plot
+ggplot(first_caar, aes(x = Days_Announced, y = CAAR, color = Group)) +
+  geom_line(linewidth = 1) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Cumulative Average Abnormal Returns (CAAR) by Entry",
+       x = "Days Around Event",
+       y = "CAAR") +
+  scale_color_manual(values=custom_colors)+
+  theme_minimal(base_family="raleway")+
+  theme(
+    panel.grid=element_blank(),
+    plot.title=element_text(hjust=0.5,size=16,face="bold"),
+    legend.title=element_blank()
+  )
+```
+
+
