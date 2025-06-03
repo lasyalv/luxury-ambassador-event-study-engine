@@ -5,7 +5,7 @@ Production‑grade event‑study analytics engine quantifying luxury brand ambas
 
 ## Introduction
 
-This project investigates the impact of celebrity **Brand Ambassador** announcements on luxury fashion companies’ stock performance. Specifically, we perform an *event study* to quantify how the market reacts to these marketing events. The business question is: _Do new brand ambassadors generate positive abnormal returns for the fashion firm?_ The stock market’s response can be measured using the **Cumulative Average Abnormal Return (CAAR)** metric, a standard tool in financial event analysis (`conscientiateam.com`).
+This project investigates the impact of celebrity **Brand Ambassador** announcements on luxury fashion companies’ stock performance. Specifically, we perform an *event study* to quantify how the market reacts to these marketing events. The business question is: _Do new brand ambassadors generate positive abnormal returns for the fashion firm?_ The stock market’s response can be measured using the **Cumulative Average Abnormal Return (CAAR)** metric, a standard tool in financial event analysis.
 
 ## Dataset
 
@@ -32,7 +32,9 @@ CAAR shows the aggregate impact of the event.
 
 ## CAAR Model Description
 
-The CAAR model aggregates abnormal returns over time and across firms (`conscientiateam.com`). Its purpose is to identify whether, on average, the brand ambassador announcements cause a significant abnormal return. Implementation details:
+The CAAR model aggregates abnormal returns over time and across firms. Its purpose is to identify whether, on average, the brand ambassador announcements cause a significant abnormal return. 
+
+Implementation details:
 
 - We built Python functions to automate AR and CAAR calculations.  
 - The analysis window was chosen as -5 to +5 trading days around each announcement.  
