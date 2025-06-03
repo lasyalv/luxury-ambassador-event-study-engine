@@ -19,7 +19,7 @@ The dataset consists of cleaned CSV files: `stock_prices.csv` (Date, Ticker, Clo
 
 ## Methodology
 
-1. **Market Model:** We first establish normal stock behavior by regressing each firm’s returns against the market index (CAPM/Market Model) using OLS regression (`conscientiateam.com`). This yields expected returns for each day based on market movements.
+1. **Market Model:** We first establish normal stock behavior by regressing each firm’s returns against the market index (CAPM/Market Model) using OLS regression. This yields expected returns for each day based on market movements.
 2. **Abnormal Returns:** For each event, we calculate Abnormal Return (AR) on day _t_ as:  
 AR<sub>it</sub> = R<sub>it</sub> – (α + β·R<sub>mt</sub>),
 where R<sub>it</sub> is the actual return and R<sub>mt</sub> is the market return.
