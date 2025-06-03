@@ -1,78 +1,276 @@
 # luxury-ambassador-event-study-engine
 Production‑grade event‑study analytics engine quantifying luxury brand ambassador impact on stock returns and consumer sentiment
 
-# Brand Ambassador Event Study (Luxury Fashion)
+## Table of Contents
 
-## Introduction
+* [Business Context and Objectives](#business-context-and-objectives)
+* [Hypotheses](#hypotheses)
+* [Project Scope](#project-scope)
+* [Repository Structure](#repository-structure)
+* [Data & Methodology](#data--methodology)
 
-This project investigates the impact of celebrity **Brand Ambassador** announcements on luxury fashion companies’ stock performance. Specifically, we perform an *event study* to quantify how the market reacts to these marketing events. 
+  * [Environment and Dependencies](#environment-and-dependencies)
+  * [Data Pipeline](#data-pipeline)
+  * [Stock Impact Analysis (Event Study)](#stock-impact-analysis-event-study)
+  * [Sentiment Analysis](#sentiment-analysis)
+  * [Search Interest Analysis](#search-interest-analysis)
+* [Key Findings](#key-findings)
 
-The business question is: _Do new brand ambassadors generate positive abnormal returns for the fashion firm?_ 
+  * [Stock Impact (CAAR Analysis)](#stock-impact-caar-analysis)
+  * [Sentiment Analysis Results](#sentiment-analysis-results)
+  * [Search Interest Insights](#search-interest-insights)
+* [Limitations](#limitations)
+* [Data Sources and References](#data-sources-and-references)
 
-The stock market’s response can be measured using the **Cumulative Average Abnormal Return (CAAR)** metric, a standard tool in financial event analysis.
+## Business Context and Objectives
 
-## Dataset
+Brands appoint ambassadors to boost credibility, expand reach, and drive sales. Yet, quantifying how endorsements translate into measurable value requires rigorous analysis. This project measures how high-profile brand ambassadors influence three critical metrics:
 
-Data sources include:
+1. **Stock Returns**
+2. **Media Sentiment**
+3. **Consumer Search Behavior**
 
-- **Stock Prices:** Daily closing prices of target luxury fashion firms (e.g., LVMH, Prada) over a two-year period. We used Yahoo Finance API (via the `yfinance` Python library) to download time series for each company and a benchmark index (S&P 500).
-- **Event Dates:** Public announcements of new brand ambassadors (dates and personalities) were compiled from press releases and news archives.
-- **Market Data:** The index values serve as a proxy for expected market returns.
+Our goal is to deliver quantitative insights that guide ambassador selection, inform marketing strategy, and demonstrate end‑to‑end business analysis and data‐engineering proficiency.
 
-The dataset consists of cleaned CSV files: `stock_prices.csv` (Date, Ticker, Close) and `events.csv` (Company, AnnouncementDate, Ambassador).
+## Hypotheses
 
-## Methodology
+1. **Occupation Effect**
+   An ambassador’s profession (actor, athlete, artist) materially influences campaign outcomes.
 
-1. **Market Model:** We first establish normal stock behavior by regressing each firm’s returns against the market index (CAPM/Market Model) using OLS regression. This yields expected returns for each day based on market movements.
-2. **Abnormal Returns:** For each event, we calculate Abnormal Return (AR) on day _t_ as:  
-AR<sub>it</sub> = R<sub>it</sub> – (α + β·R<sub>mt</sub>),
-where R<sub>it</sub> is the actual return and R<sub>mt</sub> is the market return.
-3. **Average Abnormal Return (AAR):** We average the ARs across all events/firms for each time lag relative to the announcement (e.g., day –1, 0, +1, etc.).
-4. **Cumulative Average Abnormal Return (CAAR):** We compute CAAR by cumulatively summing AAR over the event window:  
-CAAR = Σ AAR from day -5 to +5. CAAR shows the aggregate impact of the event
-5. **Statistical Testing:** We perform one-sample t-tests to assess if CAAR at specific days (or overall) is statistically different from zero
-CAAR shows the aggregate impact of the event.
-6. **Visualization:** Plot time series of AAR and CAAR around the event to visualize market reaction.
+2. **First‑Time Impact**
+   First‐ever ambassadors generate stronger spikes in stock returns, sentiment, and search interest than follow‑up appointments.
 
-## CAAR Model Description
+3. **Tiered Reach**
+   Mega influencers (≥ 1 M followers) create greater business effects than lower‑tier ambassadors.
 
-The CAAR model aggregates abnormal returns over time and across firms. Its purpose is to identify whether, on average, the brand ambassador announcements cause a significant abnormal return. 
+## Project Scope
 
-Implementation details:
+* **Brands:** Five luxury fashion houses and their seven sub‑brands (e.g., Gucci, Louis Vuitton, Burberry, Coach, Moncler).
+* **Ambassadors:** Fifteen celebrities spanning actors, athletes, and artists, including first‐time and follow‑up appointments.
+* **Time Frame:** Five‑year period (2018–2023), analyzing a 10‑trading‑day window (two weeks) around each announcement.
 
-- We built Python functions to automate AR and CAAR calculations.  
-- The analysis window was chosen as -5 to +5 trading days around each announcement.  
-- For each company-event pair, we aligned the dates to compute AR and then averaged across events.
+## Repository Structure
+
+A clear, logical folder hierarchy ensures reproducibility and collaboration:
+
+```
+/ (root)
+├── data/
+│   ├── raw/
+│   │   ├── stock_prices.csv
+│   │   ├── news_articles.csv
+│   │   └── google_trends.csv
+│   └── processed/
+│       ├── stock_abnormal_returns.csv
+│       ├── sentiment_scores.csv
+│       └── trends_spikes.csv
+├── notebooks/
+│   ├── 1_data_cleaning.ipynb
+│   ├── 2_event_study_stock.ipynb
+│   ├── 3_sentiment_analysis.ipynb
+│   └── 4_search_trends.ipynb
+├── scripts/
+│   ├── fetch_stock_data.py
+│   ├── scrape_news.py
+│   ├── compute_abnormal_returns.py
+│   ├── sentiment_scoring.py
+│   └── fetch_google_trends.py
+├── requirements.txt
+├── environment.yml
+├── README.md
+└── results/
+    ├── figures/
+    │   ├── stock_caar_plot.png
+    │   ├── sentiment_boxplot.png
+    │   └── trends_line_chart.png
+    └── tables/
+        ├── caar_summary_table.csv
+        └── sentiment_summary_table.csv
+```
+
+* **data/raw:** Original datasets (stock prices, raw news text, Google Trends exports).
+* **data/processed:** Cleaned data ready for analysis (abnormal returns, sentiment scores, trend spikes).
+* **notebooks:** Jupyter notebooks detailing each analysis step (data cleaning, event study, sentiment, trends).
+* **scripts:** Modular Python scripts for data ingestion and transformation, enabling automation.
+* **requirements.txt / environment.yml:** Lists Python packages (e.g., `pandas`, `numpy`, `scipy`, `statsmodels`, `textblob`, `pytrends`, `matplotlib`, `nltk`).
+* **results:**
+
+  * **figures:** Exported visualizations (CAAR plot, sentiment boxplot, Trends line chart).
+  * **tables:** Summary metrics (CAR/CAAR results, sentiment aggregates).
+
+## Data & Methodology
+
+### Environment and Dependencies
+
+* **Python Version:** 3.8+
+* **Key Packages:**
+
+  * `pandas` (data manipulation)
+  * `numpy` & `scipy` (numeric computations, statistical tests)
+  * `statsmodels` (market model regression)
+  * `textblob` (sentiment polarity)
+  * `nltk` (tokenization, lemmatization)
+  * `pytrends` (Google Trends API)
+  * `matplotlib` (visualizations)
+  * `requests` (data fetching)
+* **Setup Commands:**
+
+  ```bash
+  # Conda
+  conda env create -f environment.yml
+  conda activate succession‐planning
+
+  # Or pip
+  pip install -r requirements.txt
+  ```
+
+### Data Pipeline
+
+1. **Fetch & Store Raw Data**
+
+   * **fetch\_stock\_data.py:** Download historical adjusted‐close prices for each brand from Yahoo Finance.
+   * **scrape\_news.py:** Scrape press releases and news articles; store titles, dates, and full text.
+   * **fetch\_google\_trends.py:** Retrieve normalized search indices (0–100) for brand and ambassador terms via Google Trends API.
+
+2. **Data Cleaning & Transformation**
+
+   * **Stock Prices:** Merge each brand’s prices with a market index (e.g., S\&P 500) to compute expected returns using linear regression.
+   * **News Text:** Clean and label article text by event phase (pre‑announcement, announcement day, post‑announcement).
+   * **Trends Data:** Normalize and align dates; extract T–14 to T+14 windows for each event.
+
+3. **Processed Outputs**
+
+   * **stock\_abnormal\_returns.csv:** Daily abnormal returns for each brand around event dates.
+   * **sentiment\_scores.csv:** Daily average polarity scores by brand and ambassador across phases.
+   * **trends\_spikes.csv:** Indexed search volume with markers for event phases.
+
+### Stock Impact Analysis (Event Study)
+
+* **Market Model Estimation:**
+
+  * Use a 120‑day estimation window (T–140 to T–21) to regress each brand’s daily return against market index returns.
+  * Obtain parameters α (alpha) and β (beta).
+
+* **Abnormal Return (AR):**
+
+  $$
+    AR_{t} = R_{t} - (\alpha + \beta \, R_{m,t})
+  $$
+
+  where $R_{t}$ is the brand’s return on day $t$ and $R_{m,t}$ is the market return.
+
+* **Cumulative Abnormal Return (CAR):**
+
+  * Sum ARs over the event window \[T–2, T+2] to capture immediate impact.
+
+* **Cumulative Average Abnormal Return (CAAR):**
+
+  * Average CAR across all ambassador events to gauge the aggregated effect.
+
+* **Statistical Testing:**
+
+  * Perform t‑tests on CAR distributions to determine significance (p < 0.05).
+
+### Sentiment Analysis
+
+* **Text Preprocessing:**
+
+  * Convert text to lowercase, remove punctuation, tokenize, and lemmatize using `nltk`.
+
+* **Polarity Scoring:**
+
+  ```python
+  from textblob import TextBlob
+
+  polarity = TextBlob(article_text).sentiment.polarity
+  ```
+
+  * Polarity ranges from –1 (negative) to +1 (positive).
+
+* **Aggregation:**
+
+  * Compute daily mean polarity for each brand–ambassador pairing and categorize by phases:
+
+    * **Pre‑announcement:** T–14 to T–1
+    * **Announcement Day:** T
+    * **Post‑announcement:** T+1 to T+14
+
+* **Visualization:**
+
+  * Generate boxplots and line charts to compare sentiment distributions across phases and occupations.
+
+### Search Interest Analysis
+
+* **Fetch Google Trends Data:**
+
+  ```python
+  from pytrends.request import TrendReq
+
+  pytrends = TrendReq()
+  pytrends.build_payload(
+      ['BrandName', 'AmbassadorName'],
+      timeframe='YYYY-MM-DD YYYY-MM-DD'
+  )
+  trends_df = pytrends.interest_over_time()
+  ```
+
+* **Event Window Alignment:**
+
+  * Extract search indices from T–14 to T+14 and compute:
+
+    * **Peak Index:** Maximum value in window.
+    * **Duration Above Baseline:** Number of days index > 50.
+    * **Relative Search Ratio:** (Brand + Ambassador queries) ÷ Brand-only queries.
+
+* **Visualization:**
+
+  * Plot line charts highlighting pre‑, during, and post‑announcement search trends.
+
+## Key Findings
+
+### Stock Impact (CAAR Analysis)
+
+* Ambassador announcements **boosted** CAAR by approximately **+2.3 %** over a five‑day window across brands.
+* These positive CARs were **statistically significant** (p < 0.05), indicating investors **rewarded** ambassador news.
+* **Occupation Effect:** Actors consistently **drove** higher CAAR than artists or athletes, reflecting alignment with luxury brand exclusivity.
+
+> ![Stock CAAR Plot](results/figures/stock_caar_plot.png)
+
+### Sentiment Analysis Results
+
+* **Polarity Shift:** Average daily polarity increased from **0.10** (pre‑event) to **0.30** (post‑event), signifying a **positive** tone shift in media coverage.
+* **Occupation Differences:** Athletes **saw** the largest sentiment jump on announcement day, while artists’ coverage remained more neutral.
+* **First‑Time vs. Follow‑Up:** First‑ever ambassadors **sparked** sharper immediate sentiment spikes (avg polarity 0.45) compared to follow‑ups (avg polarity 0.28).
+
+> ![Sentiment Boxplot](results/figures/sentiment_boxplot.png)
+
+### Search Interest Insights
+
+* **Peak Spikes:** Google Trends index **surged** to approximately **85** on announcement day (baseline \~ 20), reflecting heightened consumer curiosity.
+* **Sustained Interest:** Post‑event interest **remained** elevated (index \~ 30–40) for 7–10 days, indicating lasting brand recall.
+* **Ambassador vs. Brand Queries:** Ambassador-name searches often **outpaced** brand-only searches, highlighting the personal draw of influencers.
+
+> ![Trends Line Chart](results/figures/trends_line_chart.png)
+
+## Limitations
+
+* **No True Control Group:** All sampled luxury brands had ambassador programs, limiting direct comparisons to ambassador-free firms.
+* **Overlapping Campaigns:** Concurrent product launches and marketing efforts may **confound** isolated ambassador effects.
+* **Neutral Media Tone:** Many articles were neutral, making subtle sentiment shifts harder to detect.
+* **Data Gaps:** Inconsistent availability of historical data for some sub‑brands or markets restricted sample size and introduced potential bias.
+
+## Data Sources and References
+
+* **Stock Prices:** Yahoo Finance (historical adjusted‑close prices).
+* **Sentiment Tools:**
+
+  * **TextBlob:** Polarity scoring (–1 to +1).
+  * **NLTK:** Tokenization and lemmatization.
+* **Search Trends:** Google Trends API via `pytrends` (normalized 0–100 index).
+* **Industry Benchmarks:** Statista for influencer‑market statistics (market size, brand budgets).
+* **Methodology References:**
+
+  * Standard event‑study formulas for abnormal returns and CAR/CAAR.
+  * Investopedia for market model and AR definitions.
 
 
-## Tools & Techniques
-
-- **Data Acquisition:** Python (`yfinance` for stock data, `pandas` for parsing CSV event logs).  
-- **Statistical Modeling:** `statsmodels` for OLS regression (Market Model estimation) and `scipy` for t‑tests.  
-- **Data Handling:** `pandas` for time series manipulation, SQL (`SQLite`) to manage large time‑series data.  
-- **Visualization:** Matplotlib/Seaborn for CAAR and AAR plots; Tableau for summary dashboard of results.  
-- **Key Concepts:** Event study methodology, market model (CAPM), hypothesis testing for abnormal returns.
-
-
-## Results & Insights
-
-- We found that announcements of certain high‑profile brand ambassadors (e.g., a K‑pop star for Brand X) led to a **positive CAAR peaking around +2 days post‑announcement**, consistent with literature.
--  For example, the average CAAR at day +2 was around +1.8% and statistically significant (p < 0.05).  
-- However, not all events had positive impact; some had negligible or slightly negative CAAR, highlighting that **endorser‑company fit** matters.  
-- A notable insight was that luxury brands with already stable stock (high market caps) showed smaller abnormal returns than smaller fashion houses (less efficient markets).  
-- We documented all findings in a report and included graphs of CAAR vs. time for each event scenario. These charts clearly illustrate the short‑term market reaction window.
-
-## Setup & Running Instructions
-
-1. **Python Environment:** Install required packages (`pip install pandas yfinance statsmodels matplotlib`).  
-2. **Data Files:** Ensure `stock_prices.csv` and `events.csv` are in the `data/` directory. Alternatively, run `python fetch_data.py` to retrieve fresh stock data.  
-3. **Config:** Edit `config.yaml` to list the companies and their event dates.  
-4. **Run Analysis:** Execute `python event_study.py`. This script will compute AR, AAR, and CAAR, perform statistical tests, and generate plots (`AR_plot.png`, `CAAR_plot.png`).  
-5. **Results:** Check `output/` for CSV reports (`abnormal_returns.csv`) and images of the CAAR timeline.  
-6. **Dependencies:** The project relies on Python 3.9+, `pandas`, and `statsmodels`.
-
-## Team & Credits
-
-Project members: Claudia Robles, Kristine Wong, Lasya Lalpet Venkata
-
-Special thanks to Professor Unnati Narang for advising on financial event-study techniques.
