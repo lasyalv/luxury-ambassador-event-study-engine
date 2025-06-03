@@ -5,7 +5,9 @@ Production‑grade event‑study analytics engine quantifying luxury brand ambas
 
 ## Introduction
 
-This project investigates the impact of celebrity **Brand Ambassador** announcements on luxury fashion companies’ stock performance. Specifically, we perform an *event study* to quantify how the market reacts to these marketing events. The business question is: _Do new brand ambassadors generate positive abnormal returns for the fashion firm?_ The stock market’s response can be measured using the **Cumulative Average Abnormal Return (CAAR)** metric, a standard tool in financial event analysis.
+This project investigates the impact of celebrity **Brand Ambassador** announcements on luxury fashion companies’ stock performance. Specifically, we perform an *event study* to quantify how the market reacts to these marketing events. 
+
+The business question is: _Do new brand ambassadors generate positive abnormal returns for the fashion firm?_ The stock market’s response can be measured using the **Cumulative Average Abnormal Return (CAAR)** metric, a standard tool in financial event analysis.
 
 ## Dataset
 
