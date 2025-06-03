@@ -67,5 +67,6 @@ The CAAR model aggregates abnormal returns over time and across firms (`conscien
 
 ## Team & Credits
 
-Project members: Claudia Robles, Kristine Wong, Lasya Lalpet Venkat
+Project members: Claudia Robles, Kristine Wong, Lasya Lalpet Venkata
+
 Special thanks to Professor Unnati Narang for advising on financial event-study techniques.
